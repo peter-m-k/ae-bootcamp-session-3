@@ -12,8 +12,8 @@ const server = setupServer(
     return res(
       ctx.status(200),
       ctx.json([
-        { id: 1, title: 'Test Task 1', description: 'Desc 1', due_date: '2025-09-30', completed: 0 },
-        { id: 2, title: 'Test Task 2', description: 'Desc 2', due_date: '2025-10-01', completed: 1 },
+        { id: 1, title: 'Test Task 1', description: 'Desc 1', due_date: '2025-09-30', completed: 0, priority: 'P3' },
+        { id: 2, title: 'Test Task 2', description: 'Desc 2', due_date: '2025-10-01', completed: 1, priority: 'P1' },
       ])
     );
   }),
@@ -51,7 +51,11 @@ const server = setupServer(
   rest.patch('/api/tasks/:id', (req, res, ctx) => {
     return res(
       ctx.status(200),
-      ctx.json({ id: Number(req.params.id), completed: req.body.completed ? 1 : 0 })
+      ctx.json({
+        id: Number(req.params.id),
+        completed: req.body.completed ? 1 : 0,
+        priority: req.body.priority || 'P3'
+      })
     );
   }),
 
@@ -148,6 +152,34 @@ describe('TODO App', () => {
     });
     await waitFor(() => {
       expect(screen.getByText('No tasks found.')).toBeInTheDocument();
+    });
+  });
+
+  test('defaults priority display to P3 and allows changing it', async () => {
+    let patchedPriority = null;
+    server.use(
+      rest.patch('/api/tasks/:id', (req, res, ctx) => {
+        patchedPriority = req.body.priority;
+        return res(ctx.status(200), ctx.json({ id: Number(req.params.id), priority: req.body.priority }));
+      })
+    );
+    const user = userEvent.setup();
+    await act(async () => {
+      render(<App />);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('Test Task 1')).toBeInTheDocument();
+    });
+
+    // Task 1 defaults to P3 (unselected priority buttons shown gray in the sketch)
+    const task1P3Button = screen.getByTestId('priority-P3-1');
+    expect(task1P3Button).toHaveAttribute('aria-pressed', 'true');
+
+    const task1P1Button = screen.getByTestId('priority-P1-1');
+    await user.click(task1P1Button);
+
+    await waitFor(() => {
+      expect(patchedPriority).toBe('P1');
     });
   });
 });

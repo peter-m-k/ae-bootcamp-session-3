@@ -14,6 +14,9 @@ app.use(morgan('dev'));
 // Initialize in-memory SQLite database
 const db = new Database(':memory:');
 
+const VALID_PRIORITIES = ['P1', 'P2', 'P3'];
+const DEFAULT_PRIORITY = 'P3';
+
 /*
 TODO TASK DATA MODEL & ENDPOINT PLAN
 
@@ -46,6 +49,7 @@ db.exec(`
     title TEXT NOT NULL,
     description TEXT,
     due_date DATE,
+    priority TEXT NOT NULL DEFAULT 'P3',
     completed BOOLEAN DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
@@ -91,12 +95,16 @@ app.get('/api/tasks', (req, res) => {
 // POST /api/tasks (create)
 app.post('/api/tasks', (req, res) => {
   try {
-    const { title, description, due_date } = req.body;
+    const { title, description, due_date, priority } = req.body;
     if (!title || typeof title !== 'string' || title.trim() === '') {
       return res.status(400).json({ error: 'Task title is required' });
     }
-    const stmt = db.prepare('INSERT INTO tasks (title, description, due_date) VALUES (?, ?, ?)');
-    const result = stmt.run(title, description || '', due_date || null);
+    if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: 'Priority must be one of P1, P2, P3' });
+    }
+    const taskPriority = priority !== undefined ? priority : DEFAULT_PRIORITY;
+    const stmt = db.prepare('INSERT INTO tasks (title, description, due_date, priority) VALUES (?, ?, ?, ?)');
+    const result = stmt.run(title, description || '', due_date || null, taskPriority);
     const newTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(newTask);
   } catch (error) {
@@ -120,13 +128,19 @@ app.get('/api/tasks/:id', (req, res) => {
 // PUT /api/tasks/:id (edit)
 app.put('/api/tasks/:id', (req, res) => {
   try {
-    const { title, description, due_date } = req.body;
+    const { title, description, due_date, priority } = req.body;
     if (!title || typeof title !== 'string' || title.trim() === '') {
       return res.status(400).json({ error: 'Task title is required' });
     }
-    const stmt = db.prepare('UPDATE tasks SET title = ?, description = ?, due_date = ? WHERE id = ?');
-    const result = stmt.run(title, description || '', due_date || null, req.params.id);
-    if (result.changes === 0) return res.status(404).json({ error: 'Task not found' });
+    if (priority !== undefined && !VALID_PRIORITIES.includes(priority)) {
+      return res.status(400).json({ error: 'Priority must be one of P1, P2, P3' });
+    }
+    const existingTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
+    if (!existingTask) return res.status(404).json({ error: 'Task not found' });
+    // Preserve current priority when the edit form does not send one
+    const taskPriority = priority !== undefined ? priority : existingTask.priority;
+    const stmt = db.prepare('UPDATE tasks SET title = ?, description = ?, due_date = ?, priority = ? WHERE id = ?');
+    stmt.run(title, description || '', due_date || null, taskPriority, req.params.id);
     const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
     res.json(updatedTask);
   } catch (error) {
@@ -135,21 +149,42 @@ app.put('/api/tasks/:id', (req, res) => {
   }
 });
 
-// PATCH /api/tasks/:id (mark complete/incomplete)
+// PATCH /api/tasks/:id (mark complete/incomplete, and/or change priority)
 app.patch('/api/tasks/:id', (req, res) => {
   try {
-    const { completed } = req.body;
-    if (typeof completed !== 'boolean') {
-      return res.status(400).json({ error: 'Completed must be boolean' });
+    const { completed, priority } = req.body;
+    const updates = [];
+    const params = [];
+
+    if (completed !== undefined) {
+      if (typeof completed !== 'boolean') {
+        return res.status(400).json({ error: 'Completed must be boolean' });
+      }
+      updates.push('completed = ?');
+      params.push(completed ? 1 : 0);
     }
-    const stmt = db.prepare('UPDATE tasks SET completed = ? WHERE id = ?');
-    const result = stmt.run(completed ? 1 : 0, req.params.id);
+
+    if (priority !== undefined) {
+      if (!VALID_PRIORITIES.includes(priority)) {
+        return res.status(400).json({ error: 'Priority must be one of P1, P2, P3' });
+      }
+      updates.push('priority = ?');
+      params.push(priority);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    params.push(req.params.id);
+    const stmt = db.prepare(`UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`);
+    const result = stmt.run(...params);
     if (result.changes === 0) return res.status(404).json({ error: 'Task not found' });
     const updatedTask = db.prepare('SELECT * FROM tasks WHERE id = ?').get(req.params.id);
     res.json(updatedTask);
   } catch (error) {
-    console.error('Error updating task completion:', error);
-    res.status(500).json({ error: 'Failed to update task completion' });
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Failed to update task' });
   }
 });
 

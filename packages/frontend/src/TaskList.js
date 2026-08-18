@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
-  List, ListItem, ListItemText, IconButton, Checkbox, Typography, Box, CircularProgress, Paper, Chip
+  List, ListItem, ListItemText, IconButton, Checkbox, Typography, Box, CircularProgress, Paper, Chip,
+  ToggleButton, ToggleButtonGroup
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import EventIcon from '@mui/icons-material/Event';
+
+const PRIORITIES = ['P1', 'P2', 'P3'];
+// Colors per UI sketch (docs/stories/priority-field-ui-sketch.png)
+const PRIORITY_UNSELECTED_COLOR = '#7A7A7A';
+const PRIORITY_SELECTED_COLOR = '#07F2E6';
 
 function TaskList({ onEdit }) {
   const [tasks, setTasks] = useState([]);
@@ -61,6 +67,20 @@ function TaskList({ onEdit }) {
       fetchTasks();
     } catch (err) {
       setError('Failed to delete task');
+    }
+  };
+
+  const handlePriorityChange = async (task, priority) => {
+    if (!priority || priority === task.priority) return;
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority })
+      });
+      fetchTasks();
+    } catch (err) {
+      setError('Failed to update task priority');
     }
   };
 
@@ -127,7 +147,7 @@ function TaskList({ onEdit }) {
           <ListItem 
             key={task.id} 
             sx={{ 
-              pr: 18,
+              pr: 26,
               py: 1,
               mb: 1,
               borderRadius: 2,
@@ -203,6 +223,48 @@ function TaskList({ onEdit }) {
                 gap: 1
               }}
             >
+              <ToggleButtonGroup
+                value={task.priority || 'P3'}
+                exclusive
+                size="small"
+                aria-label="task priority"
+                onChange={(e, newPriority) => handlePriorityChange(task, newPriority)}
+              >
+                {PRIORITIES.map((priority) => (
+                  <ToggleButton
+                    key={priority}
+                    value={priority}
+                    data-testid={`priority-${priority}-${task.id}`}
+                    sx={{
+                      height: 20,
+                      minWidth: 28,
+                      px: 0.75,
+                      py: 0,
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      color: 'white',
+                      backgroundColor: PRIORITY_UNSELECTED_COLOR,
+                      borderColor: PRIORITY_UNSELECTED_COLOR,
+                      '&:hover': {
+                        backgroundColor: PRIORITY_UNSELECTED_COLOR,
+                        opacity: 0.85
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: PRIORITY_SELECTED_COLOR,
+                        borderColor: PRIORITY_SELECTED_COLOR,
+                        color: 'white'
+                      },
+                      '&.Mui-selected:hover': {
+                        backgroundColor: PRIORITY_SELECTED_COLOR,
+                        opacity: 0.9
+                      }
+                    }}
+                  >
+                    {priority}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
               {task.due_date && (
                 <Chip
                   icon={<EventIcon sx={{ fontSize: 14 }} />}
