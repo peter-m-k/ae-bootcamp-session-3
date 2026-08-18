@@ -1,0 +1,126 @@
+# Epics and Stories - Todo App Due Dates, Priorities, and Filters
+
+## MVP Requirements
+
+- Epic: Task Data Model and Validation
+  - Story: Require task title
+    - Acceptance Criteria:
+      - A task cannot be created or saved with an empty title.
+      - Whitespace-only titles are rejected.
+      - Users receive a clear validation message when title is missing.
+    - Technical Requirements:
+      - Preserve existing frontend title validation in `TaskForm`.
+      - Preserve existing API validation that rejects missing or blank `title` values.
+      - Include test coverage for empty and whitespace-only title submission.
+  - Story: Add optional due date
+    - Acceptance Criteria:
+      - Users can create a task without a due date.
+      - Users can create or edit a task with a due date.
+      - Due dates are stored in `YYYY-MM-DD` format.
+      - Invalid due date values are treated as absent.
+    - Technical Requirements:
+      - Use a date input that emits ISO `YYYY-MM-DD` values.
+      - Send due date values using the existing task API field name `due_date` unless the API contract is explicitly changed.
+      - Normalize invalid or empty due date values to `null` or an empty form value before persistence.
+      - Avoid adding external date libraries for MVP date validation.
+  - Story: Add priority field with default P3
+    - Acceptance Criteria:
+      - Each task has a priority value of `P1`, `P2`, or `P3`.
+      - New tasks default to `P3` when no priority is selected.
+      - Users can choose `P1`, `P2`, or `P3` when creating or editing a task.
+      - Invalid priority values are not accepted.
+    - Technical Requirements:
+      - Add a priority select control to the task form.
+      - Constrain priority values to the enum `P1 | P2 | P3` in frontend validation.
+      - Include priority in create and update payloads.
+      - If backend persistence remains in use, add a `priority` column or compatible persistence field with default `P3`.
+      - Add tests for default priority and rejected invalid priority values.
+
+- Epic: Date-Based Task Filters
+  - Story: Add All filter
+    - Acceptance Criteria:
+      - Users can select an `All` filter.
+      - The `All` filter shows incomplete tasks.
+      - The `All` filter shows completed tasks.
+    - Technical Requirements:
+      - Add filter state to the task list or owning component.
+      - Render `All` as the default selected filter.
+      - Do not exclude completed tasks when `All` is active.
+      - Add tests that completed and incomplete tasks both appear in `All`.
+  - Story: Add Today filter
+    - Acceptance Criteria:
+      - Users can select a `Today` filter.
+      - The `Today` filter shows incomplete tasks due today.
+      - The `Today` filter hides completed tasks.
+      - Tasks without a due date do not appear in `Today`.
+    - Technical Requirements:
+      - Compare due dates using local calendar dates in `YYYY-MM-DD` format.
+      - Avoid timezone conversions that can shift the selected day.
+      - Apply completion filtering after determining date eligibility.
+      - Add tests for due today, completed due today, due on another day, and undated tasks.
+  - Story: Add Overdue filter
+    - Acceptance Criteria:
+      - Users can select an `Overdue` filter.
+      - The `Overdue` filter shows incomplete tasks with due dates before today.
+      - The `Overdue` filter hides completed tasks.
+      - Tasks due today, future tasks, and undated tasks do not appear in `Overdue`.
+    - Technical Requirements:
+      - Compare due dates using local calendar dates in `YYYY-MM-DD` format.
+      - Treat missing or invalid due dates as not overdue.
+      - Apply completion filtering after determining overdue eligibility.
+      - Add tests for overdue, completed overdue, due today, future, and undated tasks.
+
+- Epic: MVP Storage Boundaries
+  - Story: Preserve local-only storage scope
+    - Acceptance Criteria:
+      - MVP does not add external storage.
+      - MVP does not add multi-user behavior.
+      - MVP does not introduce authentication or account concepts.
+      - Existing task storage continues to work after adding due dates, priorities, and filters.
+    - Technical Requirements:
+      - Keep persistence within the existing application storage approach.
+      - Do not add third-party hosted databases, APIs, queues, or notification services.
+      - Keep any persistence schema changes limited to task fields required by the MVP.
+      - Add regression tests for creating, editing, listing, completing, and deleting tasks after data model changes.
+
+## Post-MVP Requirements
+
+- Epic: Visual Task Status Enhancements
+  - Story: Highlight overdue tasks
+    - Acceptance Criteria:
+      - Incomplete overdue tasks are visually distinct from other tasks.
+      - Red is used as the preferred overdue treatment.
+      - Completed overdue tasks are not highlighted as active overdue work.
+      - The highlight does not prevent users from reading task title, due date, or actions.
+    - Technical Requirements:
+      - Add an overdue helper that determines overdue state from local `YYYY-MM-DD` dates.
+      - Apply overdue styling only when the task is incomplete and due before today.
+      - Keep styling consistent with the existing Material UI component approach.
+      - Add UI tests for highlighted overdue tasks and non-highlighted completed overdue tasks.
+  - Story: Add priority badges
+    - Acceptance Criteria:
+      - Each task displays its priority as a badge.
+      - `P1` badges are red.
+      - `P2` badges are orange.
+      - `P3` badges are gray.
+      - Badges are visible in the task list without obscuring task actions or due date display.
+    - Technical Requirements:
+      - Render priority with an existing Material UI badge or chip component.
+      - Centralize priority-to-color mapping to avoid duplicated styling rules.
+      - Ensure unknown priority values fall back to `P3` styling or are not rendered.
+      - Add UI tests for each priority badge label and color class or style.
+
+- Epic: Task Sorting Enhancements
+  - Story: Sort tasks by overdue, priority, and due date
+    - Acceptance Criteria:
+      - Overdue tasks appear before non-overdue tasks.
+      - Within the same overdue status, `P1` tasks appear before `P2`, and `P2` before `P3`.
+      - Within the same overdue and priority grouping, dated tasks are sorted by due date ascending.
+      - Tasks without a due date appear last within their grouping.
+      - Sorting applies consistently after create, edit, complete, and delete actions.
+    - Technical Requirements:
+      - Implement a deterministic task comparator for overdue status, priority rank, and due date.
+      - Treat missing or invalid due dates as undated.
+      - Keep sorting logic separate from rendering so it can be unit tested.
+      - If sorting is performed by the API, update the existing task query to include priority and overdue precedence.
+      - Add tests for mixed overdue, priority, dated, and undated task lists.
