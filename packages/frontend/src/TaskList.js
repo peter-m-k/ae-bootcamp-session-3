@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   List, ListItem, ListItemText, IconButton, Checkbox, Typography, Box, CircularProgress, Paper, Chip,
   ToggleButton, ToggleButtonGroup
@@ -8,19 +8,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import EventIcon from '@mui/icons-material/Event';
 
 const PRIORITIES = ['P1', 'P2', 'P3'];
-// Colors per UI sketch (docs/stories/priority-field-ui-sketch.png)
-const PRIORITY_UNSELECTED_COLOR = '#7A7A7A';
-const PRIORITY_SELECTED_COLOR = '#07F2E6';
 
-function TaskList({ onEdit }) {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
+function TaskList({ tasks, loading, error, onEdit, onToggleComplete, onDelete, onPriorityChange }) {
   const formatDueDate = (dateString) => {
     if (!dateString) return null;
     // Parse as local date to avoid timezone offset issues
@@ -31,57 +20,6 @@ function TaskList({ onEdit }) {
       month: 'short', 
       day: 'numeric' 
     });
-  };
-
-  const fetchTasks = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/tasks');
-      if (!response.ok) throw new Error('Failed to fetch tasks');
-      const data = await response.json();
-      setTasks(data);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleToggleComplete = async (task) => {
-    try {
-      await fetch(`/api/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !task.completed })
-      });
-      fetchTasks();
-    } catch (err) {
-      setError('Failed to update task');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
-      fetchTasks();
-    } catch (err) {
-      setError('Failed to delete task');
-    }
-  };
-
-  const handlePriorityChange = async (task, priority) => {
-    if (!priority || priority === task.priority) return;
-    try {
-      await fetch(`/api/tasks/${task.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority })
-      });
-      fetchTasks();
-    } catch (err) {
-      setError('Failed to update task priority');
-    }
   };
 
   if (loading) return (
@@ -171,7 +109,7 @@ function TaskList({ onEdit }) {
             <Checkbox
               edge="start"
               checked={!!task.completed}
-              onChange={() => handleToggleComplete(task)}
+              onChange={() => onToggleComplete(task)}
               inputProps={{ 'aria-label': 'Mark task complete' }}
               size="small"
               sx={{
@@ -228,12 +166,13 @@ function TaskList({ onEdit }) {
                 exclusive
                 size="small"
                 aria-label="task priority"
-                onChange={(e, newPriority) => handlePriorityChange(task, newPriority)}
+                onChange={(e, newPriority) => onPriorityChange(task, newPriority)}
               >
                 {PRIORITIES.map((priority) => (
                   <ToggleButton
                     key={priority}
                     value={priority}
+                    className="priority-toggle"
                     data-testid={`priority-${priority}-${task.id}`}
                     sx={{
                       height: 20,
@@ -242,23 +181,7 @@ function TaskList({ onEdit }) {
                       py: 0,
                       fontSize: '0.65rem',
                       fontWeight: 700,
-                      lineHeight: 1,
-                      color: 'white',
-                      backgroundColor: PRIORITY_UNSELECTED_COLOR,
-                      borderColor: PRIORITY_UNSELECTED_COLOR,
-                      '&:hover': {
-                        backgroundColor: PRIORITY_UNSELECTED_COLOR,
-                        opacity: 0.85
-                      },
-                      '&.Mui-selected': {
-                        backgroundColor: PRIORITY_SELECTED_COLOR,
-                        borderColor: PRIORITY_SELECTED_COLOR,
-                        color: 'white'
-                      },
-                      '&.Mui-selected:hover': {
-                        backgroundColor: PRIORITY_SELECTED_COLOR,
-                        opacity: 0.9
-                      }
+                      lineHeight: 1
                     }}
                   >
                     {priority}
@@ -308,7 +231,7 @@ function TaskList({ onEdit }) {
                 </IconButton>
                 <IconButton 
                   aria-label="delete" 
-                  onClick={() => handleDelete(task.id)}
+                  onClick={() => onDelete(task.id)}
                   size="small"
                   sx={{
                     color: '#f44336',

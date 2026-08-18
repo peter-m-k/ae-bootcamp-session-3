@@ -1,12 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CssBaseline, Container, AppBar, Toolbar, Typography, Box } from '@mui/material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import TaskList from './TaskList';
 import TaskForm from './TaskForm';
+import './App.css';
 
 function App() {
   const [editingTask, setEditingTask] = useState(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/tasks');
+      if (!response.ok) throw new Error('Failed to fetch tasks');
+      const data = await response.json();
+      setTasks(data);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = async (task) => {
     if (editingTask) {
@@ -25,7 +47,43 @@ function App() {
         body: JSON.stringify(task)
       });
     }
-    setRefreshKey(k => k + 1);
+    fetchTasks();
+  };
+
+  const handleToggleComplete = async (task) => {
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: !task.completed })
+      });
+      fetchTasks();
+    } catch (err) {
+      setError('Failed to update task');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      fetchTasks();
+    } catch (err) {
+      setError('Failed to delete task');
+    }
+  };
+
+  const handlePriorityChange = async (task, priority) => {
+    if (!priority || priority === task.priority) return;
+    try {
+      await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority })
+      });
+      fetchTasks();
+    } catch (err) {
+      setError('Failed to update task priority');
+    }
   };
 
   return (
@@ -72,7 +130,15 @@ function App() {
             <TaskForm onSave={handleSave} initialTask={editingTask} />
           </Box>
           <Box sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
-            <TaskList key={refreshKey} onEdit={setEditingTask} />
+            <TaskList
+              tasks={tasks}
+              loading={loading}
+              error={error}
+              onEdit={setEditingTask}
+              onToggleComplete={handleToggleComplete}
+              onDelete={handleDelete}
+              onPriorityChange={handlePriorityChange}
+            />
           </Box>
         </Container>
       </Box>
@@ -81,3 +147,4 @@ function App() {
 }
 
 export default App;
+
